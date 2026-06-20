@@ -1,0 +1,28 @@
+{
+  "name": "sega-telemetry-pipeline",
+  "version": "1.0.0",
+  "description": "High-throughput SEGA gaming telemetry ingestion pipeline using Write-Behind Caching",
+  "type": "module",
+  "scripts": {
+    "server": "tsx src/server.ts",
+    "client": "tsx src/client.ts",
+    "worker": "tsx src/worker.ts",
+    "build": "tsc",
+    "start:server": "node dist/server.js",
+    "start:client": "node dist/client.js",
+    "start:worker": "node dist/worker.js"
+  },
+  "dependencies": {
+    "fastify": "^4.28.0",
+    "ioredis": "^5.3.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.15.0",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
