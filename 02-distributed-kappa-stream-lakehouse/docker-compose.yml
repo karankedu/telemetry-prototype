@@ -1,0 +1,72 @@
+# Distributed Kappa Pipeline infra: a single-broker Kafka (KRaft mode, no
+# Zookeeper needed) plus a Spark container that runs the Structured
+# Streaming -> Delta Lake job. Node.js client/server run on the host via npm,
+# talking to Kafka on localhost:9094.
+#
+# Uses the official apache/kafka and apache/spark Docker Hub images (Bitnami
+# pulled its free-tier versioned tags in late 2025 — only bitnami/*:latest
+# remains free, and pinning to "latest" is unsuitable for a reproducible POC).
+services:
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: telemetry-kafka
+    ports:
+      - "9094:9094" # host-facing listener for the Node.js producer
+    environment:
+      - KAFKA_NODE_ID=0
+      - KAFKA_PROCESS_ROLES=controller,broker
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=0@telemetry-kafka:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://telemetry-kafka:9092,EXTERNAL://localhost:9094
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - KAFKA_NUM_PARTITIONS=3
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  spark:
+    image: apache/spark:3.5.1
+    container_name: telemetry-spark
+    user: root
+    ports:
+      - "4040:4040" # Spark Web UI
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["sleep", "infinity"]
+    volumes:
+      - ./spark:/opt/spark-jobs
+      - ./data/delta:/opt/spark-jobs/delta
+      - ./data/checkpoints:/opt/spark-jobs/checkpoints
+
+  airflow:
+    image: apache/airflow:2.9.0
+    container_name: telemetry-airflow
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=SequentialExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////opt/airflow/airflow.db
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__WEBSERVER__SECRET_KEY=telemetry-demo-key
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=true
+      - AIRFLOW__SCHEDULER__CATCHUP_BY_DEFAULT=false
+      - _PIP_ADDITIONAL_REQUIREMENTS=apache-airflow-providers-docker
+      - HOST_PROJECT_DIR=${HOST_PROJECT_DIR}
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - airflow_home:/opt/airflow
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+    command: standalone
+
+volumes:
+  kafka_data:
+  airflow_home:
+  ivy_cache:

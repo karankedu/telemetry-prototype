@@ -1,0 +1,16 @@
+node_modules/
+dist/
+data/
+*.js.map
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Airflow
+.env
+airflow/logs/
+airflow/*.db
+airflow/*.db-shm
+airflow/*.db-wal
